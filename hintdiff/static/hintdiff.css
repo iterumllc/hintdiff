@@ -1,0 +1,118 @@
+body {
+	font-family: sans-serif;
+}
+
+span.gname {
+	font-family: monospace;
+}
+
+a.report {
+	text-decoration: none;
+	background-color: #EEEEEE;
+	color: #333333;
+	padding: 2px 6px 2px 6px;
+	border: 1px solid #CCCCCC;
+}
+
+.maintab td {
+	padding: 5px;
+}
+
+.glyphtab td {
+	text-align: center;
+	padding: 5px;
+}
+
+.gllab {
+	text-align: center;
+}
+
+.glyphtab th {
+	padding: 5px;
+}
+
+.glyphtab tbody th {
+	text-align: right;
+}
+
+.maintab thead th {
+	padding: 5px;
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: #ffffffff;
+}
+
+#glyphinfo {
+	height: 50%;
+	position: absolute;
+	overflow-y: auto;
+}
+
+#mainlist {
+	top: 50%;
+	height: 50%;
+	position: absolute;
+	overflow-y: scroll;
+}
+
+.gimg {
+	display: inline-block;
+}
+
+.gimg img {
+	width: 100%;
+	height: 100%;
+	image-rendering: pixelated;
+	object-fit: contain;
+}
+
+.gdiff {
+	padding: 1px;
+	background: #BBB;
+	display: inline-block;
+}
+
+.gdiff img {
+	width: 100%;
+	height: 100%;
+	image-rendering: pixelated;
+	object-fit: contain;
+}
+
+.sizecol {
+	text-align: right;
+}
+
+.worstval {
+	color: darkred;
+}
+
+
+table.diff td.diff_next {
+	display: none;
+}
+
+table.diff td {
+	font-family: monospace;
+	padding-right: 1em;
+	padding-left: 4px;
+}
+
+table.diff td.diff_header {
+	font-family: sans-serif;
+	font-size: 80%;
+	color: gray;
+}
+
+table.diff .diff_add {
+	color: darkgreen;
+}
+
+table.diff .diff_sub {
+	color: darkred;
+}
+
+table.diff .diff_chg {
+	color: darkorange;
+}

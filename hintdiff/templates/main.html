@@ -1,0 +1,49 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Stem hint difference viewer</title>
+	<link rel="stylesheet" href="/static/unpoly.css" />
+	<link rel="stylesheet" href="/static/hintdiff.css" />
+	<script src="/static/unpoly.js"></script>
+	<script src="/hintdiff.js"></script>
+</head>
+<body>
+	<div id="glyphinfo" class="glinfo"></div>
+	<div id="mainlist">
+	<table class="maintab">
+	<thead>
+		<tr>
+			<th>Name</th>
+			<th>Glyph</th>
+			<th>Img Diff</th>
+			<th>CS Diff</th>
+		  {%- for s in sizes %}
+		  <th>score for {{ s }}pt</th>
+		  {%- endfor %}
+		</tr>
+	</thead>
+	<tbody>
+		{%- for gn, gdd in sortedDD %}
+		<tr>
+			<td><span class="gname"><a class="report" href="/report/{{ gn }}" up-target=".glinfo">{{ gn }}</a></span></td>
+			<td class="gllab"><img src="/image/{{ gn }}/label"></td>
+	  	{%- if gdd['worstsize'] %}
+			<td class="gllab"><div class="gdiff"><img src="/image/{{ gn }}/max_diff"></div></td>
+	  	{%- else %}
+			<td></td>
+	  	{%- endif %}
+			<td>{{ 'S' if gdd.get('stems', None) }}{{ 'B' if gdd.get('body', None) }}</td>
+	  	{%- for s in sizes %}
+			<td class="sizecol{{ ' worstval' if (gdd.get('worstsize', -1) == s) }}">{{ gdd.get('weights', {}).get(s, 0)|round(2) }}</td>
+			{%- endfor %}
+			<td></td>
+		</tr>
+	{%- endfor %}
+	</tbody>
+	</table>
+	</div>
+</body>
+</html>

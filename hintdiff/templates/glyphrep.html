@@ -1,0 +1,45 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Glyph report: {{ gn }}</title>
+	<!-- <link rel="stylesheet" href="/static/unpoly.css" /> -->
+  <link rel="stylesheet" href="/static/hintdiff.css" />
+	<!-- <script src="/static/unpoly.js"></script> -->
+</head>
+<body>
+  <div class="glinfo">
+		Stems differ: {{ 'Yes' if stemdiff else 'No' }}, 
+		Body differs: {{ 'Yes' if bodydiff else 'No' }}.
+		<a class="report" href="/csdiff/{{gn}}" up-layer="new" up-size="grow">View Differences</a>
+		Magnify: <input type="range" name="foo" min="1" max="25" value="{{ mag }}" up-observe="chmag(value)"/>
+	<table class="glyphtab">
+	<thead>
+		<tr>
+			<th><span class="gname">{{ gn }}</span></th>
+		  {%- for s in sizes %}
+			<th>{{ s }}pt (score: {{ gdd.get('weights', {}).get(s, 0)|round(2) }})</th>
+		  {%- endfor %}
+		</tr>
+	</thead>
+	<tbody>
+		{%- for t in ('Reference', 'Modified', 'Difference') %}
+		<tr>
+			<th>{{ t }}</th>
+	  	{%- for s in sizes %}
+			{%- if gdd.get('weights', {}).get(s, 0) != 0 %}
+			<td><div class="{{ 'gdiff' if t == 'Difference' else 'gimg' }}"><img src="/image/{{ gn }}/{{ t }}/{{ s }}"></div></td>
+			{%- else %}
+			<td></td>
+			{%- endif %}
+			{%- endfor %}
+			<td></td>
+		</tr>
+	{%- endfor %}
+	</tbody>
+	</table>
+	</div>
+</body>
+</html>
