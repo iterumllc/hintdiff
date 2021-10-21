@@ -3,8 +3,8 @@ function sizegdiff(img, fac) {
 	let h = img.naturalHeight
 	let div = img.parentElement
 	// window.confirm("width: " + w + " height: " + h)
-	div.style.width = (fac * w) + "px"
-	div.style.height = (fac * h) + "px"
+	div.style.width = Math.ceil(fac * w / {{ adjust[0] }}) + "px"
+	div.style.height = Math.ceil(fac * h / {{ adjust[1] }}) + "px"
 }
 
 function sizeOnLoad(img, fac) {

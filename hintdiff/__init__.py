@@ -10,6 +10,13 @@ from fontTools.misc.xmlWriter import XMLWriter
 
 import freetype
 
+has_adobebc = False
+try:
+    import adobebc
+    has_adobebc = True
+except ImportError:
+    pass
+
 from PIL import Image, ImageOps, ImageChops
 
 
@@ -17,13 +24,85 @@ htmldiff = HtmlDiff(tabsize=2, wrapcolumn=50)
 labelsize = 67
 
 class FFace:
-    def __init__(self, fname):
+    def __init__(self, fname, mode):
         self.ttfont = TTFont(fname)
-        self.ftfont = freetype.Face(fname)
         self.CFF().decompileAllCharStrings()
+        adjust = (1, 1)
+        if mode == 'fg' or mode == 'fm':
+            self.buildchar = False
+            self.ftfont = freetype.Face(fname)
+            if mode == 'fm':
+                self.ftflags = (freetype.FT_LOAD_RENDER |
+                                freetype.FT_LOAD_TARGET_MONO)
+                self.monochrome = True
+            else:
+                self.ftflags = (freetype.FT_LOAD_RENDER |
+                                freetype.FT_LOAD_TARGET_NORMAL)
+                self.monochrome = False
+        else:
+            if not has_adobebc:
+                raise ImportError("Did not find adobebc module")
+            self.buildchar = True
+            self.bcfont = adobebc.open(fname)
+            if mode == 'b':
+                self.bcmode = None
+            elif mode == 'b1':
+                self.bcmode = '6x1'
+                adjust = (6, 1)
+            elif mode == 'b5':
+                self.bcmode = '6x5'
+                adjust = (6, 5)
+            elif mode == 'b8':
+                self.bcmode = '8x1'
+                adjust = (8, 1)
+            elif mode == 'b4':
+                self.bcmode = '4x4'
+                adjust = (4, 4)
+            self.monochrome = True
+        self.adjust = adjust
     
     def CFF(self):
         return self.ttfont['CFF '].cff[0]
+
+    def set_char_size(self, cs):
+        self.charsize = cs
+        if not self.buildchar:
+            self.ftfont.set_char_size(cs * 64)
+
+    def rasterize(self, gname, cs, islabel):
+        gindex = self.ttfont.getGlyphID(gname)
+        try:
+            if self.buildchar:
+                if islabel:
+                    bcmode = None
+                else:
+                    bcmode = self.bcmode
+                bitmap = self.bcfont.renderGlyph(gindex, cs, bcmode)
+                bitmap_left = bitmap.bitmap_left
+                bitmap_top = bitmap.bitmap_top
+                bitorder = 'little'
+            else:
+                self.ftfont.load_glyph(gindex, self.ftflags)
+                bitmap = self.ftfont.glyph.bitmap
+                bitmap_left = self.ftfont.glyph.bitmap_left
+                bitmap_top = self.ftfont.glyph.bitmap_top
+                bitorder = 'big'
+        except:
+            print("Couldn't generate " + gname + " at charsize " + str(cs))
+            return (None, None)
+        if self.monochrome:
+            pitch = abs(bitmap.pitch) * 8
+            bm = np.unpackbits(np.array(bitmap.buffer, dtype="uint8"),
+                               bitorder=bitorder)
+            bm.resize((bitmap.rows, pitch))
+            bm = np.where(bm==0, 0, 255).astype('uint8')
+            if pitch != bitmap.width:
+                bm = np.delete(bm, slice(bitmap.width, pitch-1), 1)
+        else:
+            bm = np.array(bitmap.buffer,
+                        dtype=np.uint8).reshape((bitmap.rows,
+                                                 bitmap.width))
+        return [bm, (bitmap_left, bitmap_top)]
 
 class diffState:
     theState = None
@@ -32,9 +111,11 @@ class diffState:
     def init(cls, *args, **kwargs):
         cls.theState = cls(*args, **kwargs)
 
-    def __init__(self, rface, mface, labelsize, mag, diffmag, charsizes):
-        self.rface = FFace(rface)
-        self.mface = FFace(mface)
+    def __init__(self, rface, mface, labelsize, mag, diffmag, charsizes,
+                 mode):
+        self.rface = FFace(rface, mode)
+        self.mface = FFace(mface, mode)
+        self.adjust = self.mface.adjust
         self.labelsize = labelsize
         self.charsizes = charsizes
         self.mag = mag
@@ -108,27 +189,17 @@ class diffState:
             print(sys.exc_info()[0])
             return weight, i1
 
-    def getImages(self, gname, cs):
+    def getImages(self, gname, cs, islabel=False):
         iinfo = []
         for fface in (self.rface, self.mface):
-            face = fface.ftfont
-            # gindex = face.get_name_index(gname.encode('ascii'))
-            gindex = fface.ttfont.getGlyphID(gname)
-            try:
-                face.load_glyph(gindex)
-                bitmap = face.glyph.bitmap
-                offsets = (face.glyph.bitmap_left, face.glyph.bitmap_top)
-                bitmap = np.array(bitmap.buffer,
-                                  dtype=np.uint8).reshape((bitmap.rows,
-                                                           bitmap.width))
-                iinfo.append([bitmap, offsets])
-            except:
-                print("Couldn't generate " + gname + " at charsize " + str(cs))
+            bi = fface.rasterize(gname, cs, islabel)
+            if bi[0] is None:
                 return (None, None)
+            iinfo.append(bi)
         # Use the offsets to reshape the bitmaps to match each other,
         # adding leading or trailing zeros to the 2D arrays as needed
-        i = 0 if iinfo[0][1][0] < iinfo[1][1][0] else 1
-        d = iinfo[(i+1)%2][1][0] - iinfo[i][1][0]
+        i = 1 if iinfo[0][1][0] < iinfo[1][1][0] else 0
+        d = (iinfo[i][1][0] - iinfo[(i+1)%2][1][0])
         for _ in range(d):
             iinfo[i][0] = np.insert(iinfo[i][0], 0, 0, axis=1)
         i = 0 if iinfo[0][0].shape[1] < iinfo[1][0].shape[1] else 1
@@ -156,10 +227,10 @@ class diffState:
     def buildImages(self):
         imgdata = {}
         for cs in (self.labelsize, *self.charsizes):
-            self.rface.ftfont.set_char_size( cs*64 )
-            self.mface.ftfont.set_char_size( cs*64 )
+            self.rface.set_char_size(cs)
+            self.mface.set_char_size(cs)
             for gn, gdd in self.diffdata.items():
-                gimg = self.getImages(gn, cs)
+                gimg = self.getImages(gn, cs, cs == self.labelsize)
                 if cs == self.labelsize:
                     gdd['images'] = { 'label': gimg[1] }
                     continue
@@ -194,7 +265,6 @@ def imgToPNGIO(cache, path, invert=True):
         return cached
     l = diffState.theState.diffdata
     for ln in path:
-        print(ln)
         l = l.get(ln, None)
         if l is None:
             return None
@@ -216,7 +286,9 @@ def serve_static(path):
 @app.route('/hintdiff.js')
 def serve_hdjs():
     ds = diffState.theState
-    return render_template("hintdiff.js", mag = ds.mag, diffmag = ds.diffmag)
+    return render_template("hintdiff.js", mag = ds.mag,
+                                          diffmag = ds.diffmag,
+                                          adjust = ds.adjust)
 
 @app.route('/image/<gname>/<typ>')
 @app.route('/image/<gname>/<typ>/<siz>')
