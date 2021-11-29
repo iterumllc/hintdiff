@@ -120,9 +120,13 @@ class diffState:
         self.charsizes = charsizes
         self.mag = mag
         self.diffmag = diffmag
+        self.max_x = 0
+        self.max_y = 0
+        self.maskimage = None
 
         self.buildDiffData(self.mface.ttfont.getGlyphOrder())
         self.buildImages()
+        self.buildMask()
 
     def buildDiffData(self, gnames):
         self.diffdata = diffdata = {}
@@ -238,6 +242,11 @@ class diffState:
                     continue
                 weight, idiff = self.weightedDiff(gimg[0], gimg[1])
                 if weight > 0:
+                    x, y = gimg[1].size
+                    if self.max_x < x:
+                        self.max_x = x
+                    if self.max_y < y:
+                        self.max_y = y
                     wd = gdd.get('weights', None)
                     if not wd:
                         wd = gdd['weights'] = {}
@@ -247,6 +256,26 @@ class diffState:
                     csimgs['Reference'] = gimg[0]
                     csimgs['Modified'] = gimg[1]
                     csimgs['Difference'] = idiff 
+
+    def buildMask(self):
+        if (self.mface.adjust == (1, 1) or self.max_x == 0
+                or self.max_y == 0):
+            return
+        a = np.zeros((self.max_y,self.max_x), dtype='uint8')
+        for x in range(self.max_x):
+            for y in range(self.max_y):
+                f = 0
+                if self.mface.adjust[0] > 1:
+                    f += x//self.mface.adjust[0]
+                if self.mface.adjust[1] > 1:
+                    f += y//self.mface.adjust[1]
+                if f % 2 > 0:
+                    a[y][x] = 127
+        i = Image.fromarray(a, 'L')
+        j = i.copy()
+        j.convert('LA')
+        j.putalpha(i)
+        self.maskimage = j
 
 def maxWeight(item):
     gdd = item[1]
@@ -272,6 +301,18 @@ def imgToPNGIO(cache, path, invert=True):
     if invert:
         img = ImageOps.invert(img)
     buf = cache[cn] = BytesIO()
+    img.save(buf, 'PNG')
+    return buf
+
+def maskToPNGIO(maskimage, path):
+    l = diffState.theState.diffdata
+    for ln in path:
+        l = l.get(ln, None)
+        if l is None:
+            return None
+    x, y = l.size
+    img = maskimage.crop((0, 0, x, y))
+    buf = BytesIO()
     img.save(buf, 'PNG')
     return buf
 
@@ -307,6 +348,18 @@ def getLabel(gname, typ, siz=0):
             return response
     abort(404)
 
+@app.route('/mask/<gname>/<typ>/<siz>')
+def getMask(gname, typ, siz=0):
+    maskimage = diffState.theState.maskimage
+    if maskimage is not None and gname is not None:
+        img = None
+        img = maskToPNGIO(maskimage, (gname, 'images', int(siz), typ))
+        if img:
+            response = make_response(img.getvalue())
+            response.headers.set('Content-Type', 'image/png')
+            return response
+    abort(404)
+
 @app.route('/csdiff/<gname>')
 def csdiff(gname):
     ds = diffState.theState
@@ -325,9 +378,10 @@ def glyph_report(gname):
         abort(404)
     stemdiff = gdd.get('stems', False)
     bodydiff = gdd.get('body', False)
+    hasmask = ds.maskimage is not None
     return render_template('glyphrep.html', gn=gname, gdd=gdd, mag=ds.mag,
                            stemdiff=stemdiff, bodydiff=bodydiff,
-                           sizes=ds.charsizes)
+                           sizes=ds.charsizes, hasmask=hasmask)
 
 @app.route('/')
 def entry_point():

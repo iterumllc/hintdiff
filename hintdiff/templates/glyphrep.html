@@ -15,6 +15,9 @@
 		Body differs: {{ 'Yes' if bodydiff else 'No' }}.
 		<a class="report" href="/csdiff/{{gn}}" up-layer="new" up-size="grow">View Differences</a>
 		Magnify: <input type="range" name="foo" min="1" max="25" value="{{ mag }}" up-observe="chmag(value)"/>
+		{%- if hasmask %}
+		<input type="checkbox" name="showmask" checked up-switch=".mask"/> Pixel boundaries
+		{%- endif %}
 	<table class="glyphtab">
 	<thead>
 		<tr>
@@ -30,7 +33,7 @@
 			<th>{{ t }}</th>
 	  	{%- for s in sizes %}
 			{%- if gdd.get('weights', {}).get(s, 0) != 0 %}
-			<td><div class="{{ 'gdiff' if t == 'Difference' else 'gimg' }}"><img src="/image/{{ gn }}/{{ t }}/{{ s }}"></div></td>
+			<td><div class="{{ 'gdiff' if t == 'Difference' else 'gimg' }}"><img src="/image/{{ gn }}/{{ t }}/{{ s }}">{% if hasmask and t != 'Difference' %}<img class="mask" src="/mask/{{ gn }}/{{ t }}/{{ s }}" up-show-for=":checked">{% endif %}</div></td>
 			{%- else %}
 			<td></td>
 			{%- endif %}
