@@ -62,7 +62,11 @@ class FFace:
         self.adjust = adjust
     
     def CFF(self):
-        return self.ttfont['CFF '].cff[0]
+        if 'CFF ' in self.ttfont:
+            return self.ttfont['CFF '].cff[0]
+        elif 'CFF2' in self.ttfont:
+            return self.ttfont['CFF2'].cff[0]
+        assert False
 
     def set_char_size(self, cs):
         self.charsize = cs
